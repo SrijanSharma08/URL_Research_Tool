@@ -12,3 +12,4 @@ requests>=2.31.0
 
 langchain-google-genai
 google-generativeai
+sentence-transformers
