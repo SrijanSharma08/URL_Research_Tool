@@ -1,14 +1,14 @@
+import os
+import pickle
+
 from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain.chains.combine_documents.stuff import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from utils.embeddings import get_embeddings
 from utils.llm import get_llm
-
-import os
-import pickle
 
 
 VECTORSTORE_PATH = "vectorstore/faiss_index.pkl"
@@ -22,6 +22,7 @@ def build_vectorstore(documents):
 
     docs = splitter.split_documents(documents)
     embeddings = get_embeddings()
+
     vectorstore = FAISS.from_documents(docs, embeddings)
 
     os.makedirs("vectorstore", exist_ok=True)
@@ -43,7 +44,6 @@ def load_qa_chain():
         """
 You are a research assistant.
 Answer the question using ONLY the provided context.
-Use bullet points where helpful, avoid overuse.
 If the answer is not present in the context, say you do not know.
 
 Context:
@@ -52,7 +52,7 @@ Context:
 Question:
 {input}
 
-Answer in a clear and concise manner.
+Answer clearly and concisely.
 """
     )
 
