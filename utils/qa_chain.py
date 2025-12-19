@@ -1,15 +1,17 @@
-import os
-import shutil
-
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
+from langchain.chains import create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough
+from langchain_community.vectorstores import FAISS
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from utils.embeddings import get_embeddings
 from utils.llm import get_llm
 
-VECTORSTORE_DIR = "vectorstore"
+import os
+import pickle
+
+
+VECTORSTORE_PATH = "vectorstore/faiss_index.pkl"
 
 
 def build_vectorstore(documents):
@@ -20,56 +22,48 @@ def build_vectorstore(documents):
 
     docs = splitter.split_documents(documents)
     embeddings = get_embeddings()
-
     vectorstore = FAISS.from_documents(docs, embeddings)
 
-    os.makedirs(VECTORSTORE_DIR, exist_ok=True)
-    vectorstore.save_local(VECTORSTORE_DIR)
-
-
-def clear_vectorstore():
-    if os.path.exists(VECTORSTORE_DIR):
-        shutil.rmtree(VECTORSTORE_DIR)
+    os.makedirs("vectorstore", exist_ok=True)
+    with open(VECTORSTORE_PATH, "wb") as f:
+        pickle.dump(vectorstore, f)
 
 
 def load_qa_chain():
-    if not os.path.exists(VECTORSTORE_DIR):
+    if not os.path.exists(VECTORSTORE_PATH):
         return None
 
-    embeddings = get_embeddings()
-    vectorstore = FAISS.load_local(
-        VECTORSTORE_DIR,
-        embeddings,
-        allow_dangerous_deserialization=True
-    )
+    with open(VECTORSTORE_PATH, "rb") as f:
+        vectorstore = pickle.load(f)
 
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 6})
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
     llm = get_llm()
 
     prompt = ChatPromptTemplate.from_template(
-        """Answer the question using only the context below.
+        """
+You are a research assistant.
+Answer the question using ONLY the provided context.
+Use bullet points where helpful, avoid overuse.
+If the answer is not present in the context, say you do not know.
 
-Guidelines:
-- Be concise and accurate.
-- Use bullet points where helpful and avoid overuse.
-- Keep answers short unless explanation or comparison is required.
-- Do not add information not present in the context.
-
-<context>
+Context:
 {context}
-</context>
 
-Question: {question}
+Question:
+{input}
+
+Answer in a clear and concise manner.
 """
     )
 
-    chain = (
-        {
-            "context": retriever,
-            "question": RunnablePassthrough(),
-        }
-        | prompt
-        | llm
+    document_chain = create_stuff_documents_chain(
+        llm=llm,
+        prompt=prompt
     )
 
-    return chain, vectorstore
+    retrieval_chain = create_retrieval_chain(
+        retriever=retriever,
+        combine_docs_chain=document_chain
+    )
+
+    return retrieval_chain
