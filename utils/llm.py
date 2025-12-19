@@ -9,8 +9,9 @@ def get_llm():
         raise ValueError("GEMINI_API_KEY not found in Streamlit secrets")
 
     return ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash",
+        model="gemini-2.0-flash",
         google_api_key=api_key,
         temperature=0.3,
-        max_output_tokens=512,
+        max_output_tokens=1024,
+        convert_system_message_to_human=True,
     )
