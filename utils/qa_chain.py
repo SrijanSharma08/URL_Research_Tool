@@ -46,7 +46,7 @@ def load_qa_chain():
     prompt = ChatPromptTemplate.from_template(
         """
 You are a research assistant.
-Answer the question using ONLY the provided context.
+Answer the question using ONLY the context below.
 Use bullet points where helpful, avoid overuse.
 If the answer is not present, say you do not know.
 
@@ -65,12 +65,13 @@ Answer clearly and concisely.
 
         context = "\n\n".join(doc.page_content for doc in docs)
 
-        messages = prompt.format_messages(
+        # IMPORTANT: render prompt to STRING (Gemini-safe)
+        prompt_text = prompt.format(
             context=context,
             question=question
         )
 
-        response = llm.invoke(messages)
+        response = llm.invoke(prompt_text)
 
         return {
             "answer": response.content,
