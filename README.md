@@ -55,21 +55,18 @@ The system allows users to query multiple web pages and generates answers strict
 pip install -r requirements.txt
 ```
 
-### 2. Install and start Ollama
+### 2. API Key Configuration (Cloud Version)
 
-Download Ollama from: https://ollama.com
+The cloud-deployed version of this project uses the Gemini API.
 
-Pull the required model:
+To configure the API key:
 
-```bash
-ollama pull llama3
-```
+1. Create a file named `config.py` in the project root
+2. Add the following content:
 
-Start the Ollama service:
+```python
+GEMINI_API_KEY = "your_api_key_here"
 
-```bash
-ollama serve
-```
 
 ### 3. Run the application
 
