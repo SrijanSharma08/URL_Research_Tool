@@ -71,15 +71,23 @@ Answer clearly and concisely.
 
         response = llm.invoke(prompt_text)
 
-        return {
-            "answer": response.content,
-            "sources": list(
-                dict.fromkeys(
-                    d.metadata.get("source")
-                    for d in docs
-                    if d.metadata.get("source")
-                )
+        answer_text = (
+            response.content
+            if hasattr(response, "content")
+            else str(response)
+        )
+
+        sources = list(
+            dict.fromkeys(
+                d.metadata.get("source")
+                for d in docs
+                if d.metadata.get("source")
             )
+        )
+
+        return {
+            "answer": answer_text,
+            "sources": sources
         }
 
     return qa_chain
