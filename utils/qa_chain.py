@@ -5,7 +5,6 @@ import time
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_google_genai import ChatGoogleGenerativeAIError
 
 from utils.embeddings import get_embeddings
 from utils.llm import get_llm
@@ -16,8 +15,8 @@ VECTORSTORE_PATH = "vectorstore/faiss_index.pkl"
 
 def build_vectorstore(documents):
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=200
+        chunk_size=800,        # smaller chunks = fewer tokens
+        chunk_overlap=150
     )
 
     docs = splitter.split_documents(documents)
@@ -42,15 +41,16 @@ def load_qa_chain():
     with open(VECTORSTORE_PATH, "rb") as f:
         vectorstore = pickle.load(f)
 
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
     llm = get_llm()
 
     prompt = ChatPromptTemplate.from_template(
         """
 You are a research assistant.
+
 Answer the question using ONLY the context below.
 Use bullet points where helpful.
-If the answer is not present, say you do not know.
+If the answer is not present in the context, say "I do not know."
 
 Context:
 {context}
@@ -73,8 +73,8 @@ Answer clearly and concisely.
         )
 
         try:
-            # ⏱ Prevent burst RPM (Streamlit reruns)
-            time.sleep(2)
+            # ⏳ Prevent Free-Tier burst (15 RPM)
+            time.sleep(4)
 
             response = llm.invoke(prompt_text)
 
@@ -84,14 +84,37 @@ Answer clearly and concisely.
                 else str(response)
             )
 
-        except ChatGoogleGenerativeAIError as e:
-            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                answer_text = (
-                    "⏳ Gemini API rate limit reached.\n\n"
-                    "Please wait about **1 minute** and try again."
-                )
-            else:
-                raise e
+        except Exception as e:
+            msg = str(e)
+
+            # 🔴 Rate-limit handling
+            if "429" in msg or "RESOURCE_EXHAUSTED" in msg:
+                return {
+                    "answer": (
+                        "⚠️ **Rate limit reached.**\n\n"
+                        "Gemini Free Tier allows ~15 requests per minute.\n"
+                        "Please wait **30–60 seconds** and try again."
+                    ),
+                    "sources": []
+                }
+
+            # 🟠 Model / request errors
+            if "404" in msg or "400" in msg:
+                return {
+                    "answer": (
+                        "⚠️ **Model request failed.**\n\n"
+                        "This can happen due to temporary API issues or "
+                        "invalid model availability.\n\n"
+                        "Please retry shortly."
+                    ),
+                    "sources": []
+                }
+
+            # 🔥 Unknown errors
+            return {
+                "answer": "❌ An unexpected error occurred. Please try again later.",
+                "sources": []
+            }
 
         sources = list(
             dict.fromkeys(
