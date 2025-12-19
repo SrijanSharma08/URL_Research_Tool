@@ -61,7 +61,8 @@ Answer clearly and concisely.
     )
 
     def qa_chain(question: str):
-        docs = retriever.get_relevant_documents(question)
+        docs = retriever.invoke(question)
+
         context = "\n\n".join(doc.page_content for doc in docs)
 
         messages = prompt.format_messages(
