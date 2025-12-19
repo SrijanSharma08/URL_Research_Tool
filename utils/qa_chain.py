@@ -4,7 +4,6 @@ import pickle
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_google_genai import ChatGoogleGenerativeAIError
 
 from utils.embeddings import get_embeddings
 from utils.llm import get_llm
@@ -62,6 +61,7 @@ Answer clearly and concisely.
 
     def qa_chain(question: str):
         docs = retriever.invoke(question)
+
         context = "\n\n".join(doc.page_content for doc in docs)
 
         prompt_text = prompt.format(
@@ -69,24 +69,13 @@ Answer clearly and concisely.
             question=question
         )
 
-        try:
-            response = llm.invoke(prompt_text)
+        response = llm.invoke(prompt_text)
 
-            answer_text = (
-                response.content
-                if hasattr(response, "content")
-                else str(response)
-            )
-
-        except ChatGoogleGenerativeAIError as e:
-            if "RESOURCE_EXHAUSTED" in str(e):
-                answer_text = (
-                    "⚠️ Gemini API quota exhausted.\n\n"
-                    "The free-tier limit for this model has been reached. "
-                    "Please try again later or enable billing on the Google Cloud project."
-                )
-            else:
-                raise e
+        answer_text = (
+            response.content
+            if hasattr(response, "content")
+            else str(response)
+        )
 
         sources = list(
             dict.fromkeys(
