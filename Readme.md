@@ -16,6 +16,15 @@ The system allows users to query multiple web pages and generates answers strict
 
 ---
 
+## Screenshots
+
+### Main Interface
+![Main UI](assets/UI1.png)
+
+### Answer with Sources and Timeline
+![Answer View](assets/UI2.png)
+
+---
 ## Tech Stack
 
 - Python
