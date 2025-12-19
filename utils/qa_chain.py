@@ -1,5 +1,6 @@
 import os
 import pickle
+import time
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.vectorstores import FAISS
@@ -69,6 +70,7 @@ Answer clearly and concisely.
             question=question
         )
 
+        time.sleep(2)
         response = llm.invoke(prompt_text)
 
         answer_text = (
