@@ -59,7 +59,7 @@ if "urls" not in st.session_state:
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# Normalize older history entries (IMPORTANT FIX)
+# Normalize older history entries
 for item in st.session_state.history:
     if "time" not in item:
         item["time"] = "Earlier"
@@ -113,33 +113,21 @@ st.divider()
 query = st.text_input("Ask a question about the content")
 
 if query:
-    loaded = load_qa_chain()
-    if not loaded:
+    chain = load_qa_chain()
+
+    if not chain:
         st.warning("Please process URLs first.")
     else:
-        chain, vectorstore = loaded
-
         with st.spinner("Thinking..."):
             result = chain(query)
-            answer = result["answer"]
-
-            docs_scores = vectorstore.similarity_search_with_score(query, k=6)
-
-            source_map = {}
-            for doc, score in docs_scores:
-                src = doc.metadata.get("source", "Unknown source")
-                source_map.setdefault(src, []).append({
-                    "score": score,
-                    "text": doc.page_content.strip()
-                })
 
         st.session_state.history.insert(
             0,
             {
                 "time": datetime.now().strftime("%d %b %Y · %H:%M"),
                 "question": query,
-                "answer": answer,
-                "sources": source_map
+                "answer": result["answer"],
+                "sources": result["sources"],
             }
         )
 
@@ -153,18 +141,10 @@ if st.session_state.history:
         unsafe_allow_html=True
     )
 
-    st.subheader("Sources & Highlighted Snippets")
-    first = True
-    for src, snippets in latest["sources"].items():
-        label = "⭐ Most Relevant Source" if first else "Source"
-        css = "top-source" if first else "source"
-        st.markdown(f"**🔗 {src} — {label}**")
-        for s in snippets[:2]:
-            st.markdown(
-                f"<div class='snippet'>{s['text'][:400]}...</div>",
-                unsafe_allow_html=True
-            )
-        first = False
+    if latest["sources"]:
+        st.subheader("Sources")
+        for src in latest["sources"]:
+            st.markdown(f"🔗 {src}")
 
 # ---------------- Timeline ----------------
 if len(st.session_state.history) > 1:
@@ -173,8 +153,7 @@ if len(st.session_state.history) > 1:
 
     st.markdown("<div class='timeline'>", unsafe_allow_html=True)
     for item in st.session_state.history:
-        timestamp = item.get("time", "Earlier")
-        with st.expander(f"{timestamp} — {item['question']}"):
+        with st.expander(f"{item['time']} — {item['question']}"):
             st.markdown(
                 f"<div class='card answer'>{item['answer']}</div>",
                 unsafe_allow_html=True
