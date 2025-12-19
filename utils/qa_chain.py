@@ -1,8 +1,6 @@
 import os
 import pickle
 
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents.stuff import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -43,27 +41,33 @@ def load_qa_chain():
     prompt = ChatPromptTemplate.from_template(
         """
 You are a research assistant.
-Answer the question using ONLY the provided context.
-If the answer is not present in the context, say you do not know.
+Use ONLY the context below to answer the question.
+Use bullet points where helpful, avoid overuse.
+If the answer is not present, say you do not know.
 
 Context:
 {context}
 
 Question:
-{input}
+{question}
 
 Answer clearly and concisely.
 """
     )
 
-    document_chain = create_stuff_documents_chain(
-        llm=llm,
-        prompt=prompt
-    )
+    def qa_chain(question: str):
+        docs = retriever.get_relevant_documents(question)
+        context = "\n\n".join(doc.page_content for doc in docs)
 
-    retrieval_chain = create_retrieval_chain(
-        retriever=retriever,
-        combine_docs_chain=document_chain
-    )
+        messages = prompt.format_messages(
+            context=context,
+            question=question
+        )
 
-    return retrieval_chain
+        response = llm.invoke(messages)
+        return {
+            "answer": response.content,
+            "sources": list(set(d.metadata.get("source") for d in docs if "source" in d.metadata))
+        }
+
+    return qa_chain

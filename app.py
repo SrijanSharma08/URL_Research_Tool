@@ -120,7 +120,7 @@ if query:
         chain, vectorstore = loaded
 
         with st.spinner("Thinking..."):
-            result = chain.invoke({"input": query})
+            result = chain(query)
             answer = result["answer"]
 
             docs_scores = vectorstore.similarity_search_with_score(query, k=6)
