@@ -9,3 +9,6 @@ faiss-cpu>=1.8.0
 unstructured>=0.10.30
 python-dotenv>=1.0.1
 requests>=2.31.0
+
+langchain-google-genai
+google-generativeai
