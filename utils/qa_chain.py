@@ -28,6 +28,11 @@ def build_vectorstore(documents):
         pickle.dump(vectorstore, f)
 
 
+def clear_vectorstore():
+    if os.path.exists(VECTORSTORE_PATH):
+        os.remove(VECTORSTORE_PATH)
+
+
 def load_qa_chain():
     if not os.path.exists(VECTORSTORE_PATH):
         return None
@@ -41,7 +46,7 @@ def load_qa_chain():
     prompt = ChatPromptTemplate.from_template(
         """
 You are a research assistant.
-Use ONLY the context below to answer the question.
+Answer the question using ONLY the provided context.
 Use bullet points where helpful, avoid overuse.
 If the answer is not present, say you do not know.
 
@@ -65,9 +70,16 @@ Answer clearly and concisely.
         )
 
         response = llm.invoke(messages)
+
         return {
             "answer": response.content,
-            "sources": list(set(d.metadata.get("source") for d in docs if "source" in d.metadata))
+            "sources": list(
+                dict.fromkeys(
+                    d.metadata.get("source")
+                    for d in docs
+                    if d.metadata.get("source")
+                )
+            )
         }
 
     return qa_chain
