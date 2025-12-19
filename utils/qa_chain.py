@@ -2,14 +2,11 @@ import os
 import pickle
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from utils.embeddings import get_embeddings
 from utils.llm import get_llm
-
 
 VECTORSTORE_PATH = "vectorstore/faiss_index.pkl"
 
@@ -56,36 +53,33 @@ Context:
 {context}
 
 Question:
-{input}
+{question}
 
 Answer clearly and concisely.
 """
     )
 
-    combine_docs_chain = create_stuff_documents_chain(
-        llm=llm,
-        prompt=prompt
-    )
-
-    chain = create_retrieval_chain(
-        retriever=retriever,
-        combine_docs_chain=combine_docs_chain
-    )
-
     def qa_chain(question: str):
-        result = chain.invoke({"input": question})
+        docs = retriever.invoke(question)
 
-        sources = list(
-            dict.fromkeys(
-                doc.metadata.get("source")
-                for doc in result["context"]
-                if doc.metadata.get("source")
-            )
+        context = "\n\n".join(doc.page_content for doc in docs)
+
+        prompt_text = prompt.format(
+            context=context,
+            question=question
         )
 
+        response = llm.invoke(prompt_text)
+
         return {
-            "answer": result["answer"],
-            "sources": sources
+            "answer": response.content,
+            "sources": list(
+                dict.fromkeys(
+                    d.metadata.get("source")
+                    for d in docs
+                    if d.metadata.get("source")
+                )
+            )
         }
 
     return qa_chain
