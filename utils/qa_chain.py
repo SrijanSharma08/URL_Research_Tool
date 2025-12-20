@@ -42,7 +42,7 @@ def load_qa_chain():
         vectorstore = pickle.load(f)
 
     # ⬇ keep k small for free tier
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
     llm = get_llm()
 
     prompt = ChatPromptTemplate.from_template(
@@ -50,6 +50,8 @@ def load_qa_chain():
 You are a research assistant.
 
 Answer the question using ONLY the context below.
+Use bullet points where helpful.
+Keep the answer concise but informative.
 If the answer is not present, say "I do not know."
 
 Context:
