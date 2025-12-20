@@ -1,5 +1,6 @@
 import streamlit as st
 from datetime import datetime
+import time
 
 from utils.loader import load_urls
 from utils.qa_chain import build_vectorstore, load_qa_chain, clear_vectorstore
@@ -30,20 +31,6 @@ h1, h2, h3 { font-weight: 600; }
     margin-bottom: 0.3rem;
 }
 
-.top-source {
-    color: #facc15;
-    font-weight: 600;
-}
-
-.snippet {
-    background-color: #020617;
-    border-left: 4px solid #38bdf8;
-    padding: 0.75rem;
-    margin: 0.5rem 0;
-    font-size: 0.9rem;
-    line-height: 1.5;
-}
-
 .timeline {
     border-left: 2px solid #1f2937;
     padding-left: 1rem;
@@ -58,6 +45,9 @@ if "urls" not in st.session_state:
 
 if "history" not in st.session_state:
     st.session_state.history = []
+
+if "last_query_time" not in st.session_state:
+    st.session_state.last_query_time = 0.0
 
 # Normalize older history entries
 for item in st.session_state.history:
@@ -110,26 +100,35 @@ if st.sidebar.button("🗑 Clear Index"):
 
 # ---------------- Main ----------------
 st.divider()
-query = st.text_input("Ask a question about the content")
 
-if query:
+query = st.text_input("Ask a question about the content")
+ask_clicked = st.button("🔍 Ask")
+
+if ask_clicked and query:
     chain = load_qa_chain()
 
     if not chain:
         st.warning("Please process URLs first.")
     else:
-        with st.spinner("Thinking..."):
-            result = chain(query)
+        # ⏱ global cooldown (extra safety)
+        now = time.time()
+        if now - st.session_state.last_query_time < 5:
+            st.warning("⏳ Please wait a few seconds before asking again.")
+        else:
+            st.session_state.last_query_time = now
 
-        st.session_state.history.insert(
-            0,
-            {
-                "time": datetime.now().strftime("%d %b %Y · %H:%M"),
-                "question": query,
-                "answer": result["answer"],
-                "sources": result["sources"],
-            }
-        )
+            with st.spinner("Thinking..."):
+                result = chain(query)
+
+            st.session_state.history.insert(
+                0,
+                {
+                    "time": datetime.now().strftime("%d %b %Y · %H:%M"),
+                    "question": query,
+                    "answer": result["answer"],
+                    "sources": result["sources"],
+                }
+            )
 
 # ---------------- Display Latest Answer ----------------
 if st.session_state.history:

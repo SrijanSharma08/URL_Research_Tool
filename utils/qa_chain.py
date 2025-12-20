@@ -15,7 +15,7 @@ VECTORSTORE_PATH = "vectorstore/faiss_index.pkl"
 
 def build_vectorstore(documents):
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=800,        # smaller chunks = fewer tokens
+        chunk_size=800,      # lower token pressure
         chunk_overlap=150
     )
 
@@ -41,6 +41,7 @@ def load_qa_chain():
     with open(VECTORSTORE_PATH, "rb") as f:
         vectorstore = pickle.load(f)
 
+    # ⬇ keep k small for free tier
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
     llm = get_llm()
 
@@ -49,8 +50,7 @@ def load_qa_chain():
 You are a research assistant.
 
 Answer the question using ONLY the context below.
-Use bullet points where helpful.
-If the answer is not present in the context, say "I do not know."
+If the answer is not present, say "I do not know."
 
 Context:
 {context}
@@ -62,19 +62,36 @@ Answer clearly and concisely.
 """
     )
 
-    def qa_chain(question: str):
-        docs = retriever.invoke(question)
+    # ⏱ local cooldown to prevent Streamlit rerun spam
+    last_call_time = {"t": 0}
 
+    def qa_chain(question: str):
+        now = time.time()
+
+        # 🚦 hard throttle (minimum 4 seconds between calls)
+        if now - last_call_time["t"] < 4:
+            return {
+                "answer": (
+                    "⏳ Please wait a few seconds before asking another question.\n\n"
+                    "This helps stay within Gemini Free Tier limits."
+                ),
+                "sources": []
+            }
+
+        last_call_time["t"] = now
+
+        docs = retriever.invoke(question)
         context = "\n\n".join(doc.page_content for doc in docs)
 
+        # ✅ Gemini-safe: render prompt to STRING
         prompt_text = prompt.format(
             context=context,
             question=question
         )
 
         try:
-            # ⏳ Prevent Free-Tier burst (15 RPM)
-            time.sleep(4)
+            # extra buffer for RPM safety
+            time.sleep(2)
 
             response = llm.invoke(prompt_text)
 
@@ -85,34 +102,35 @@ Answer clearly and concisely.
             )
 
         except Exception as e:
-            msg = str(e)
+            msg = str(e).lower()
 
-            # 🔴 Rate-limit handling
-            if "429" in msg or "RESOURCE_EXHAUSTED" in msg:
+            # 🔴 Rate limit / quota exhausted
+            if "429" in msg or "resource_exhausted" in msg or "quota" in msg:
                 return {
                     "answer": (
-                        "⚠️ **Rate limit reached.**\n\n"
-                        "Gemini Free Tier allows ~15 requests per minute.\n"
-                        "Please wait **30–60 seconds** and try again."
+                        "⚠️ **Gemini Free Tier rate limit reached.**\n\n"
+                        "Please wait **30–60 seconds** and try again.\n"
+                        "This is expected behavior on the free tier."
                     ),
                     "sources": []
                 }
 
             # 🟠 Model / request errors
-            if "404" in msg or "400" in msg:
+            if "404" in msg or "400" in msg or "not found" in msg:
                 return {
                     "answer": (
-                        "⚠️ **Model request failed.**\n\n"
-                        "This can happen due to temporary API issues or "
-                        "invalid model availability.\n\n"
-                        "Please retry shortly."
+                        "⚠️ **Model temporarily unavailable.**\n\n"
+                        "Please retry in a moment."
                     ),
                     "sources": []
                 }
 
-            # 🔥 Unknown errors
+            # 🔥 Catch-all safety net
             return {
-                "answer": "❌ An unexpected error occurred. Please try again later.",
+                "answer": (
+                    "❌ An unexpected error occurred while contacting the model.\n\n"
+                    "Please try again later."
+                ),
                 "sources": []
             }
 
